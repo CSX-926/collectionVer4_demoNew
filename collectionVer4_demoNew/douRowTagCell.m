@@ -1,26 +1,23 @@
 //
-//  TagCell.m
+//  DouRowTagCell.m
 //  collectionVer4_demoNew
 //
 //  Created by chensixin on 2025/8/27.
 //
 
 //
-//  当前这个 cell 很单纯，就是显示一条标签
+//  当前这个 cell 用于两列显示标签
 // 
-#import "TagCell.h"
+#import "DouRowTagCell.h"
 
-@interface TagCell()
+@interface DouRowTagCell()
 
 // 显示文字
 @property (nonatomic, strong) UILabel *describe_textLabel;
 
 @end
 
-
-
-
-@implementation TagCell
+@implementation DouRowTagCell
 
 - (instancetype)initWithFrame:(CGRect)frame{
     self = [super initWithFrame:frame];
@@ -29,10 +26,7 @@
     }
     
     return self;
-    
 }
-
-
 
 // 设置这个 cell 的 UI
 - (void)setupUI{
@@ -53,7 +47,6 @@
         [self.describe_textLabel.leadingAnchor constraintEqualToAnchor:self.contentView.leadingAnchor constant:16],
         [self.describe_textLabel.centerYAnchor constraintEqualToAnchor:self.contentView.centerYAnchor]
     ]];
-    
 }
 
 // 外部调用设置数据到这个 cell，只有这两个，直接拼
@@ -61,8 +54,6 @@
     self.describe_textLabel.text = [NSString stringWithFormat:@"%@ %@",
                                     tag.emoji, tag.name];
 }
-
-
 
 - (void)setSelected:(BOOL)selected {
     [super setSelected:selected];
@@ -73,6 +64,5 @@
         self.layer.borderColor = [UIColor lightGrayColor].CGColor;
     }
 }
-
 
 @end
