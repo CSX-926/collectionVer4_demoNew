@@ -18,8 +18,6 @@
 // 子 collectionView 的布局对象
 @property (nonatomic, strong) UICollectionViewFlowLayout *innerTagViewLayout;
 
-
-
 // 这个 pageCell 的所有 tags 数据（子 cell)，使用数组存
 @property (nonatomic, strong) NSArray<Tags *> *sub_tags;
 
@@ -37,6 +35,10 @@
     self = [super initWithFrame:frame];
     if(self){
         [self setupUI];
+        
+        // 设置在这个 pageCell 上的子控件的相关
+        [self setupInnerTagViewLayout];
+        [self setupInnerTagCollectionView];
     }
     
     return self;
@@ -45,7 +47,7 @@
 
 // 设置当前的 pageCell
 - (void) setupUI{
-    // 1. 设置当前这个 pageCell 的一些小细节
+    // 设置当前这个 pageCell 的一些小细节
     // 颜色
     self.backgroundColor = [UIColor systemBackgroundColor];
     // 圆角
@@ -65,12 +67,6 @@
         [self.titleLabel.leadingAnchor constraintEqualToAnchor:self.contentView.leadingAnchor constant:24],
         [self.titleLabel.trailingAnchor constraintEqualToAnchor:self.contentView.trailingAnchor]
     ]];
-    
-    
-    
-    // 2. 设置在这个 pageCell 上的子控件的相关
-    [self setupInnerTagViewLayout];
-    [self setupInnerTagCollectionView];
     
 }
 
@@ -102,7 +98,7 @@
     self.innerTagView.dataSource = self;
     self.innerTagView.delegate = self;
     
-    // 绑定自定义的Cell类型
+    // 绑定自定义的Cell类型，两个
     [self.innerTagView registerClass:[TagCell class] forCellWithReuseIdentifier:@"tagCellIdentofier"];
     [self.innerTagView registerClass:[DouRowTagCell class] forCellWithReuseIdentifier:@"douRowTagCellIdentofier"];
     
@@ -112,7 +108,7 @@
     self.innerTagView.scrollEnabled = YES;
     
     // 注意：这里不能直接设置多选，因为curPageIndex可能还没有设置
-    // 多选设置将在setPageCellWithTagData方法中进行
+    // 多选设置将在setPageCellWithTagData方法中进行，有数据来根据数据中的 max_cnt 字段设置
     
     [self.contentView addSubview:self.innerTagView];
     
@@ -134,15 +130,15 @@
 - (void)setPageCellWithTagData:(Tags *)tag{
     
     self.sub_tags = tag.sub_tags;
-    
     self.titleLabel.text = tag.name;
+    
     
     
     // 根据max_cnt设置布局和选择模式
     BOOL max_cnt_flag = (tag.max_cnt > 1); // 获取
     self.innerTagView.allowsMultipleSelection = max_cnt_flag;
     
-    // 根据max_cnt设置布局
+    // 根据max_cnt设置布局，/
     [self updateLayoutForMaxCount:tag.max_cnt];
     
     // 初始化选中时间记录
@@ -151,7 +147,6 @@
             self.selectionTimeMap = [NSMutableDictionary dictionary];
         }
     }
-    
     
     // 实现刷新，否则内部不显示
     [self.innerTagView reloadData];
@@ -196,19 +191,21 @@
     UICollectionViewCell *cell;
     
     // 获取父标签的max_cnt（通过代理获取）
-//    NSInteger maxCount = [self getParentTagMaxCount];
-    NSInteger maxCount = [self.delegate getParentTagMaxCountForPageCell:self];
+    NSInteger maxCount = [self getParentTagMaxCount];
+//    NSInteger maxCount = [self.delegate getParentTagMaxCountForPageCell:self]; // 直接调用系统方法
     
     if (maxCount == 1) {
         // 单列显示，使用TagCell
         TagCell *tCell = [self.innerTagView dequeueReusableCellWithReuseIdentifier:@"tagCellIdentofier" forIndexPath:indexPath];
         [tCell setTagCellWithTagData:tags];
         cell = tCell;
+        
     } else if (maxCount == 5) {
         // 两列显示，使用DouRowTagCell
         DouRowTagCell *douCell = [self.innerTagView dequeueReusableCellWithReuseIdentifier:@"douRowTagCellIdentofier" forIndexPath:indexPath];
         [douCell setTagCellWithTagData:tags];
         cell = douCell;
+        
     } else {
         // 默认使用TagCell
         TagCell *tCell = [self.innerTagView dequeueReusableCellWithReuseIdentifier:@"tagCellIdentofier" forIndexPath:indexPath];
@@ -225,12 +222,14 @@
 
 #pragma mark - UICollectionViewDelegate
 
+// 当前页面选择的规则
 - (BOOL)collectionView:(UICollectionView *)collectionView shouldSelectItemAtIndexPath:(NSIndexPath *)indexPath {
     // 根据max_cnt处理选择逻辑
     NSInteger maxCount = [self getParentTagMaxCount];
     
+    // 多选逻辑，最多选择maxCount个
     if (maxCount > 1) {
-        // 多选逻辑，最多选择maxCount个
+        // 获取当前已经选中的
         NSArray *selectedItems = [collectionView indexPathsForSelectedItems];
         
         // 如果当前item已经被选中，允许取消选中
@@ -248,14 +247,12 @@
                 [self.selectionTimeMap removeObjectForKey:@(earliestSelectedPath.item).stringValue];
             }
         }
-        
         return YES;
-    } else {
-        // 单选逻辑，选择新项目时取消之前的选择
-        NSArray *selectedItems = [collectionView indexPathsForSelectedItems];
-        for (NSIndexPath *selectedPath in selectedItems) {
-            [collectionView deselectItemAtIndexPath:selectedPath animated:YES];
-        }
+        
+    } 
+    else {
+        // 单选
+        return YES;
     }
     
     return YES;
@@ -269,36 +266,43 @@
     
     // 记录选择时间（仅多选页面）
     NSInteger maxCount = [self getParentTagMaxCount];
-    if (maxCount > 1) {
+    if (maxCount > 1) { // 多选页面
+        // 直接加入
         [self.selectionTimeMap setObject:[NSDate date] forKey:@(indexPath.item).stringValue];
+        
+        // 如果这个协议实现了，调用，获取选中的标签信息
+        if([self.delegate respondsToSelector:@selector(getLastPageSelectedTags:)]){
+            [self.delegate getLastPageSelectedTags:self];
+        }
     }
     
-    if ([self.delegate respondsToSelector:@selector(pageCellDidSelectTag:atIndex:)]) {
-        [self.delegate pageCellDidSelectTag:self atIndex:indexPath.item];
+    // 单选页面直接跳转，调用页面的跳转函数
+    if ([self.delegate respondsToSelector:@selector(pageCellDidSelectTag_pageJump:atIndex:)]) {
+        [self.delegate pageCellDidSelectTag_pageJump:self atIndex:indexPath.item];
     }
-    
-    // 如果是多选页面，获取选中的标签信息
-    if (maxCount > 1 && [self.delegate respondsToSelector:@selector(getLastPageSelectedTags:)]) {
-        [self.delegate getLastPageSelectedTags:self];
-    }
+
 }
 
 
 - (void)collectionView:(UICollectionView *)collectionView didDeselectItemAtIndexPath:(NSIndexPath *)indexPath {
     
-    // 如果是多选页面，获取选中的标签信息
+    // 如果是多选页面，
     NSInteger maxCount = [self getParentTagMaxCount];
-    if (maxCount > 1 && [self.delegate respondsToSelector:@selector(getLastPageSelectedTags:)]) {
-        [self.delegate getLastPageSelectedTags:self];
-    }
     
     // 从时间记录中移除取消选中的标签
     if (maxCount > 1) {
         [self.selectionTimeMap removeObjectForKey:@(indexPath.item).stringValue];
+        
+        // 获取选中的标签信息
+        if( [self.delegate respondsToSelector:@selector(getLastPageSelectedTags:)]){
+            [self.delegate getLastPageSelectedTags:self];
+        }
     }
 }
 
-// 添加查找最早选择标签的方法
+
+
+// -- 添加查找最早选择标签的方法
 - (NSIndexPath *)findEarliestSelectedIndexPath:(NSArray *)selectedItems {
     if (!self.selectionTimeMap || selectedItems.count == 0) {
         return selectedItems.firstObject; // 如果没有时间记录，返回第一个
@@ -320,6 +324,7 @@
 
 
 
+
 // 获取父标签的max_cnt
 - (NSInteger)getParentTagMaxCount {
     if ([self.delegate respondsToSelector:@selector(getParentTagMaxCountForPageCell:)]) {
@@ -332,8 +337,7 @@
 
 
 
-
-// 根据max_cnt更新布局
+// 直接使用 tagcell 实现 根据max_cnt更新布局
 - (void)updateLayoutForMaxCount:(NSInteger)maxCount {
     if (maxCount == 1) {
         // 单列显示

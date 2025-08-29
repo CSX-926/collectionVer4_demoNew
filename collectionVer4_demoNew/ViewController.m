@@ -18,8 +18,10 @@ static NSString *const kPageCellIdentifier = @"pc_collectionViewCell";
 @property (nonatomic, strong) meetInfo* mtInfo;
 // 外层的 colllectionView 布局对象
 @property (nonatomic, strong) UICollectionViewFlowLayout *layout;
-// 最外层的 collectionView
+// 外层的 collectionView
 @property (nonatomic, strong) UICollectionView *outsetCollectionView;
+// 添加下一步按钮
+@property (nonatomic, strong) UIButton *nextStepButton;
 
 @end
 
@@ -33,13 +35,15 @@ static NSString *const kPageCellIdentifier = @"pc_collectionViewCell";
     [super viewDidLoad];
     
     // 整个标题
-    self.title = @"collectionVer4_demo";
+    self.title = @"ver4_demo";
     
     [self setupData_mtInfo];
     
     [self setupLayout];
     
     [self setupCollectionView];
+    
+    [self setupNextStepButton];
     
 }
 
@@ -112,7 +116,24 @@ static NSString *const kPageCellIdentifier = @"pc_collectionViewCell";
         [self.outsetCollectionView.bottomAnchor constraintEqualToAnchor:self.view.bottomAnchor]
     ]];
     
+}
+
+// 设置下一步按钮
+- (void)setupNextStepButton {
+    self.nextStepButton = [[UIButton alloc] initWithFrame:CGRectMake(0, 0, 200, 50)];
+    self.nextStepButton.center = CGPointMake(self.view.bounds.size.width / 2, self.view.bounds.size.height - 100);
     
+    self.nextStepButton.layer.cornerRadius = 25;
+    self.nextStepButton.layer.masksToBounds = YES;
+    
+    [self.nextStepButton setTitle:@"下一步" forState:UIControlStateNormal];
+    [self.nextStepButton setTitleColor:[UIColor whiteColor] forState:UIControlStateNormal];
+    [self.nextStepButton setTitleColor:[UIColor lightGrayColor] forState:UIControlStateDisabled];
+    self.nextStepButton.backgroundColor = [UIColor lightGrayColor];
+    
+    self.nextStepButton.enabled = NO;
+    [self.nextStepButton addTarget:self action:@selector(nextStepButtonTapped) forControlEvents:UIControlEventTouchUpInside];
+    [self.view addSubview:self.nextStepButton];
 }
 
 
@@ -139,9 +160,9 @@ static NSString *const kPageCellIdentifier = @"pc_collectionViewCell";
     
     Tags *tags = self.mtInfo.tags[indexPath.item]; // 取出这三个大 tags 中的一个
     
-    pCell.curPageIndex = indexPath.item;
+    pCell.curPageIndex = indexPath.item; // 记录每个 pcell 所在的位置 0 1 2
     
-    // 调用 pCell 中的函数，配置数据
+    // 调用 pCell 中的函数，配置里层的数据
     [pCell setPageCellWithTagData:tags];
     
     pCell.delegate = self; // 这个 pcell 的外层代理是外面的这个 view
@@ -153,14 +174,19 @@ static NSString *const kPageCellIdentifier = @"pc_collectionViewCell";
 
 
 
-#pragma mark - PageCellDelegate
+#pragma mark - PageCellDelegate 实现的逻辑
 
-- (void)pageCellDidSelectTag:(PageCell *)cell atIndex:(NSInteger)tagIndex {
+// 实现页面跳转
+// 1. 当前的页面是否需要跳转
+// 2. 获取当前的分页的 tag 数据，因为要根据 max_cnt 字段判断是否切换页面
+// 3. 切换页面的时候也判断一下
+- (void)pageCellDidSelectTag_pageJump:(PageCell *)cell atIndex:(NSInteger)tagIndex {
     // 根据max_cnt处理跳转逻辑
     if (cell.curPageIndex < self.mtInfo.tags.count) {
         Tags *currentTag = [self.mtInfo.tags objectAtIndex:cell.curPageIndex];
         
         if (currentTag.max_cnt == 1) {
+            
             // 单选页面，选择后自动跳转到下一页
             if (cell.curPageIndex < self.mtInfo.tags.count - 1) {
                 
@@ -168,11 +194,18 @@ static NSString *const kPageCellIdentifier = @"pc_collectionViewCell";
                 [self.outsetCollectionView setContentOffset:CGPointMake(self.outsetCollectionView.bounds.size.width * nextPageIndex, 0) animated:YES];
                 NSLog(@"单选页面 - 跳转到下一页: %ld", (long)nextPageIndex);
             }
+            
         } else {
             // 多选页面，不自动跳转
         }
     }
 }
+
+/* 
+ [self.outsetCollectionView scrollToItemAtIndexPath:nextIndexPath
+                                   atScrollPosition:UICollectionViewScrollPositionCenteredHorizontally
+                                           animated:YES];
+ */
 
 
 
@@ -180,14 +213,24 @@ static NSString *const kPageCellIdentifier = @"pc_collectionViewCell";
     return [cell.innerTagView indexPathsForSelectedItems];
 }
 
+/* // collectionview 的方法，返回当前这个view 中所选择的所有 item 的 nsindexpath 索引列表
+ @property (nonatomic, readonly, nullable) NSArray<NSIndexPath *> *indexPathsForSelectedItems; // returns nil or an array of selected index paths
+ */
 
 
 
-// 添加获取最后一页选中标签的方法
+
+// 获取最后一页选中标签的方法，打印用
+// 1. 判断当前页面的索引值
+// 2. 调用 pagecell 中的 collectionview 的方法，获取选择的 item 的索引列表
 - (void)getLastPageSelectedTags:(PageCell *)cell {
     if (cell.curPageIndex == 2) {
+        // 
         NSArray *selectedIndexPaths = [cell.innerTagView indexPathsForSelectedItems];
         NSLog(@"最后一页选中的标签数量: %lu", (unsigned long)selectedIndexPaths.count);
+        
+        // 更新下一步按钮状态
+        [self updateNextStepButtonState:selectedIndexPaths.count > 0];
         
         for (NSIndexPath *indexPath in selectedIndexPaths) {
             Tags *currentTag = [self.mtInfo.tags objectAtIndex:cell.curPageIndex];
@@ -199,14 +242,79 @@ static NSString *const kPageCellIdentifier = @"pc_collectionViewCell";
 
 
 
-// 获取父标签的max_cnt
+// 获取父标签的 max_cnt
+// 父标签的 max_cnt 在外层的 collectionview 层的数据结构记录着
 - (NSInteger)getParentTagMaxCountForPageCell:(PageCell *)cell {
     if (cell.curPageIndex < self.mtInfo.tags.count) {
-        
+        // 1. 获取当前 pagecell 的数据结构
         Tags *parentTag = [self.mtInfo.tags objectAtIndex:cell.curPageIndex];
+        // 2. 返回这个字段
         return parentTag.max_cnt;
     }
     return 1; // 默认返回1
+}
+
+
+
+// 更新下一步按钮状态
+- (void)updateNextStepButtonState:(BOOL)enabled {
+    self.nextStepButton.enabled = enabled;
+    if (enabled) {
+        self.nextStepButton.backgroundColor = [UIColor redColor];
+    } else {
+        self.nextStepButton.backgroundColor = [UIColor lightGrayColor];
+    }
+}
+
+
+
+// 下一步按钮点击事件，点击之后显示
+- (void)nextStepButtonTapped {
+    // 获取当前显示的PageCell
+    NSInteger currentIndex = self.outsetCollectionView.contentOffset.x / self.outsetCollectionView.bounds.size.width;
+    
+    if (currentIndex < self.mtInfo.tags.count) {
+        Tags *currentTag = [self.mtInfo.tags objectAtIndex:currentIndex];
+        
+        if (currentTag.max_cnt == 5) {
+            // 显示选中的标签对话框
+            [self showSelectedTagsDialog];
+        }
+    }
+}
+
+
+
+// 显示选中标签对话框
+- (void)showSelectedTagsDialog {
+    NSInteger currentIndex = self.outsetCollectionView.contentOffset.x / self.outsetCollectionView.bounds.size.width;
+    
+    if (currentIndex < self.mtInfo.tags.count) {
+        Tags *currentTag = [self.mtInfo.tags objectAtIndex:currentIndex];
+        NSMutableString *message = [NSMutableString stringWithString:@"选中的标签：\n"];
+        
+        // 获取当前PageCell
+        NSIndexPath *indexPath = [NSIndexPath indexPathForItem:currentIndex inSection:0];
+        PageCell *currentCell = (PageCell *)[self.outsetCollectionView cellForItemAtIndexPath:indexPath];
+        
+        if (currentCell) {
+            NSArray *selectedIndexPaths = [currentCell.innerTagView indexPathsForSelectedItems];
+            for (NSIndexPath *tagIndexPath in selectedIndexPaths) {
+                Tags *selectedSubTag = [currentTag.sub_tags objectAtIndex:tagIndexPath.item];
+                [message appendFormat:@"%@ %@\n", selectedSubTag.emoji, selectedSubTag.name];
+            }
+        }
+        
+        UIAlertController *alert = [UIAlertController alertControllerWithTitle:@"选择结果" 
+                                                                       message:message 
+                                                                preferredStyle:UIAlertControllerStyleAlert];
+        
+        UIAlertAction *okAction = [UIAlertAction actionWithTitle:@"确定" 
+                                                           style:UIAlertActionStyleDefault 
+                                                         handler:nil];
+        [alert addAction:okAction];
+        [self presentViewController:alert animated:YES completion:nil];
+    }
 }
 
 

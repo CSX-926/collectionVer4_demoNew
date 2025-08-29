@@ -28,6 +28,8 @@
     return self;
 }
 
+
+
 // 设置这个 cell 的 UI
 - (void)setupUI{
     self.backgroundColor = [UIColor systemBackgroundColor];
@@ -49,11 +51,17 @@
     ]];
 }
 
+
+
+
 // 外部调用设置数据到这个 cell，只有这两个，直接拼
 - (void)setTagCellWithTagData:(Tags *)tag{
     self.describe_textLabel.text = [NSString stringWithFormat:@"%@ %@",
                                     tag.emoji, tag.name];
 }
+
+
+
 
 - (void)setSelected:(BOOL)selected {
     [super setSelected:selected];
